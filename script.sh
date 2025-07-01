@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+
+# Define colors
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+RESET='\033[0m'
+
+# Function to install dependencies
+install_dependencies() {
+    echo ">>> Checking and installing dependencies..."
+    if command -v pkg >/dev/null 2>&1; then
+        echo "Updating system packages..."
+        pkg update && pkg upgrade -y
+        if ! command -v git >/dev/null 2>&1; then
+            echo "Installing Git..."
+            pkg install git -y
+        else
+            echo "Git is already installed."
+        fi
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "Installing curl..."
+            pkg install curl -y
+        else
+            echo "curl is already installed."
+        fi
+    elif command -v apt >/dev/null 2>&1; then
+        echo "Updating system packages..."
+        sudo apt update && sudo apt upgrade -y
+        if ! command -v git >/dev/null 2>&1; then
+            echo "Installing Git..."
+            sudo apt install git -y
+        else
+            echo "Git is already installed."
+        fi
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "Installing curl..."
+            sudo apt install curl -y
+        else
+            echo "curl is already installed."
+        fi
+    elif command -v brew >/dev/null 2>&1; then
+        echo "Updating Homebrew..."
+        brew update
+        if ! command -v git >/dev/null 2>&1; then
+            echo "Installing Git..."
+            brew install git
+        else
+            echo "Git is already installed."
+        fi
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "Installing curl..."
+            brew install curl
+        else
+            echo "curl is already installed."
+        fi
+    else
+        echo "Error: No package manager (pkg, apt, or brew) found. Please install Git and curl manually."
+        exit 1
+    fi
+}
+
+# Function to display menu
+show_menu() {
+    clear
+    echo -e "${GREEN}             ▄▀▄     ▄▀▄${RESET}"
+    echo -e "${GREEN}            ▄█░░▀▀▀▀▀░░█▄${RESET}"
+    echo -e "${GREEN}        ▄▄  █░░░░░░░░░░░█  ▄▄${RESET}"
+    echo -e "${GREEN}       █▄▄█ █░░█░░┬░░█░░█ █▄▄█${RESET}"
+    echo -e "${CYAN} ╔═══════════════════════════════════════╗${RESET}"
+    echo -e "${GREEN} ║ ♚ Project: TimeForge                  ║${RESET}"
+    echo -e "${GREEN} ║ ♚ Author: Argh94                      ║${RESET}"
+    echo -e "${GREEN} ║ ♚ GitHub: https://github.com/argh94/TimeForge   ║${RESET}"
+    echo -e "${CYAN} ╚═══════════════════════════════════════╝${RESET}"
+    echo -e "${RESET}"
+    echo -e "${CYAN}Please select an option:${RESET}"
+    echo -e "${GREEN}1. Create a repository with a custom date${RESET}"
+    echo -e "${GREEN}2. Delete this script and its data${RESET}"
+    echo -e "${RED}3. Exit${RESET}"
+    echo -e "${CYAN}Enter option number (1-3): ${RESET}"
+}
+
+# Function to create a repository with a custom date
+create_repo_with_date() {
+    echo
+    echo ">>> Please select a year between 2000 and 2025:"
+    PS3="Enter the number for the year (1-26): "
+    options=(2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 \
+             2010 2011 2012 2013 2014 2015 2016 2017 2018 2019 \
+             2020 2021 2022 2023 2024 2025)
+    select YEAR in "${options[@]}"
+    do
+        if [ -n "$YEAR" ] && [ "$YEAR" -ge 2000 ] && [ "$YEAR" -le 2025 ]; then
+            echo "Selected year: $YEAR"
+            break
+        else
+            echo "Please select a valid year (1-26)."
+        fi
+    done
+
+    echo
+    echo ">>> Please provide the following information:"
+    echo
+    echo "1. GitHub Personal Access Token:"
+    echo "   - Go to https://github.com/settings/tokens/new"
+    echo "   - Create a new token with 'repo' scope."
+    echo "   - Copy the token and paste it below."
+    echo "   - Note: Keep your token secure and never share it publicly!"
+    read -r ACCESS_TOKEN
+    [ -z "$ACCESS_TOKEN" ] && { echo "Error: Token cannot be empty."; exit 1; }
+
+    echo
+    echo "2. GitHub username (e.g., argh94):"
+    read -r USERNAME
+    [ -z "$USERNAME" ] && { echo "Error: Username cannot be empty."; exit 1; }
+
+    echo
+    echo "3. Repository name (e.g., test-repo):"
+    read -r REPONAME
+    [ -z "$REPONAME" ] && { echo "Error: Repository name cannot be empty."; exit 1; }
+
+    # Verify access to the repository
+    echo ">>> Verifying access to the repository..."
+    if ! curl -s -H "Authorization: token $ACCESS_TOKEN" "https://api.github.com/repos/$USERNAME/$REPONAME" | grep -q '"id"'; then
+        echo "Error: Failed to access $USERNAME/$REPONAME. Please check your token, username, and repository name."
+        exit 1
+    fi
+
+    # Create and set up local repository
+    [ ! -d "$YEAR" ] && mkdir "$YEAR"
+    cd "$YEAR" || exit
+    git init
+
+    # Create README with optional message
+    echo
+    echo "4. Would you like to add a message to the README? (Press Enter to skip)"
+    read -r README
+    if [ -z "$README" ]; then
+        echo "Generated by https://github.com/$USERNAME/$REPONAME" > README.md
+    else
+        echo "$README\n\nGenerated by https://github.com/$USERNAME/$REPONAME" > README.md
+    fi
+
+    # Create commit with custom date
+    git add .
+    GIT_AUTHOR_DATE="$YEAR-01-01T08:00:00" \
+        GIT_COMMITTER_DATE="$YEAR-01-01T08:00:00" \
+        git commit -m "Commit for year $YEAR"
+
+    # Connect to GitHub and push changes
+    git remote add origin "https://${ACCESS_TOKEN}@github.com/${USERNAME}/${REPONAME}.git"
+    git branch -M main
+    git push -u origin main -f
+
+    # Cleanup
+    cd ..
+    rm -rf "$YEAR"
+
+    echo
+    echo ">>> Done! Check your GitHub profile: https://github.com/$USERNAME"
+}
+
+# Function to delete script and data
+delete_script() {
+    echo
+    echo ">>> Deleting script and related data..."
+    SCRIPT_DIR="$(dirname "$0")"
+    rm -rf "$SCRIPT_DIR"
+    echo ">>> Script and data deleted successfully."
+    exit 0
+}
+
+# Main function
+main() {
+    # Install dependencies
+    install_dependencies
+
+    while true; do
+        show_menu
+        read -r choice
+        case $choice in
+            1)
+                create_repo_with_date
+                ;;
+            2)
+                delete_script
+                ;;
+            3)
+                echo ">>> Exiting script..."
+                exit 0
+                ;;
+            *)
+                echo ">>> Invalid option! Please enter a number between 1 and 3."
+                ;;
+        esac
+        echo
+        echo "Press Enter to continue..."
+        read -r
+    done
+}
+
+# Run main function
+main
+
+unset -f show_menu install_dependencies create_repo_with_date delete_script main
